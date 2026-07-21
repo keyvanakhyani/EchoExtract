@@ -1,0 +1,8 @@
+{
+  "title": "Voice Transcription Tool",
+  "upload_label": "Upload audio file",
+  "processing": "Processing your file...",
+  "result_label": "Transcription result",
+  "error_file_too_large": "File is too large. Max size is 100MB.",
+  "language_detected": "Detected language: {lang}"
+}

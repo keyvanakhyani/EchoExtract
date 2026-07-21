@@ -1,0 +1,32 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Temporary test scripts
+try_*.py
+test_dll.py
+
+# Data folders (input videos and generated outputs)
+data/input/
+data/output/
+!data/input/.gitkeep
+!data/output/.gitkeep
+
+# Model cache
+whisper_models/
+
+# Audio artifacts
+*.wav
+
+# IDE / OS
+.vscode/
+.DS_Store
+
+# Environment secrets
+.env
