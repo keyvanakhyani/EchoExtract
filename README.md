@@ -54,7 +54,7 @@ src/echo_extract/
 ### Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/EchoExtract.git
+git clone https://github.com/keyvanakhyani/EchoExtract.git
 cd EchoExtract
 
 python -m venv venv
@@ -197,7 +197,7 @@ EchoExtract فایل‌های ویدیویی را به متن تبدیل می‌
 **پیش‌نیازها:** پایتون ۳.۱۰ به بالا، ffmpeg، و ترجیحاً یک GPU انویدیا.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/EchoExtract.git
+git clone https://github.com/keyvanakhyani/EchoExtract.git
 cd EchoExtract
 python -m venv venv
 .\venv\Scripts\Activate.ps1
