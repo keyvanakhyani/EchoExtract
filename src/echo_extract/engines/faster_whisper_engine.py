@@ -1,16 +1,23 @@
 """Local transcription engine powered by faster-whisper."""
 
 import os
-
-# Point HuggingFace cache to drive D so models don't fill up drive C.
-os.environ["HF_HOME"] = r"D:\whisper_models\huggingface"
+import sysconfig
 from pathlib import Path
 
-# CUDA DLLs must be discoverable BEFORE faster_whisper is imported.
-# os.add_dll_directory handles the initial load, but ctranslate2 also
-# resolves cublas lazily at run time via the PATH env var, so we add the
-# directories to PATH as well to cover both cases.
-_nvidia_root = Path(r"D:\python workspace\EchoExtract\venv\Lib\site-packages\nvidia")
+from echo_extract.core.config import settings
+
+# Point HuggingFace cache to the location from settings so downloaded
+# models don't fill up drive C.
+os.environ.setdefault("HF_HOME", str(settings.hf_home))
+
+# faster-whisper needs NVIDIA's cublas/cudnn DLLs at runtime. They ship
+# inside the installed nvidia-* pip packages under site-packages/nvidia.
+# We locate site-packages dynamically so this works on any machine, then
+# register the DLL folders both via add_dll_directory and PATH (ctranslate2
+# resolves cublas lazily at run time via PATH).
+_site_packages = Path(sysconfig.get_paths()["purelib"])
+_nvidia_root = _site_packages / "nvidia"
+
 for _sub in ("cublas", "cudnn"):
     _dll_dir = _nvidia_root / _sub / "bin"
     if _dll_dir.exists():
@@ -29,10 +36,9 @@ class FasterWhisperEngine(TranscriptionEngine):
 
     def __init__(
         self,
-        model_size: str = "large-v3",
-        device: str = "cuda",
-        compute_type: str = "int8_float16",
-        download_root="D:/whisper_models",
+        model_size: str = settings.model_size,
+        device: str = settings.device,
+        compute_type: str = settings.compute_type,
     ) -> None:
         """Load the Whisper model into memory."""
         self.model = WhisperModel(
@@ -41,11 +47,24 @@ class FasterWhisperEngine(TranscriptionEngine):
             compute_type=compute_type,
         )
 
-    def transcribe(self, audio_path: Path) -> TranscriptionResult:
-        """Transcribe audio and return a structured result."""
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: str | None = None,
+        task: str = "transcribe",
+    ) -> TranscriptionResult:
+        """Transcribe audio and return a structured result.
+
+        Args:
+            audio_path: Path to a WAV audio file.
+            language: Optional language code (e.g. 'fa', 'en').
+                If None, Whisper auto-detects the language.
+        """
         segments_iter, info = self.model.transcribe(
             str(audio_path),
-            beam_size=5,
+            beam_size=settings.beam_size,
+            language=language,
+            task=task,
         )
 
         segments = [
