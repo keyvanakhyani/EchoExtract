@@ -25,10 +25,11 @@ for _sub in ("cublas", "cudnn"):
         os.environ["PATH"] = str(_dll_dir) + os.pathsep + os.environ["PATH"]
 
 # Import faster_whisper AFTER the DLL directories are registered above.
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 from echo_extract.core.models import Segment, TranscriptionResult
 from echo_extract.engines.base import TranscriptionEngine
+from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
 
 class FasterWhisperEngine(TranscriptionEngine):
@@ -40,12 +41,14 @@ class FasterWhisperEngine(TranscriptionEngine):
         device: str = settings.device,
         compute_type: str = settings.compute_type,
     ) -> None:
-        """Load the Whisper model into memory."""
+        """Load the Whisper model and wrap it in a batched pipeline."""
         self.model = WhisperModel(
             model_size,
             device=device,
             compute_type=compute_type,
         )
+        # Batched pipeline processes multiple chunks in parallel on the GPU.
+        self.batched_model = BatchedInferencePipeline(model=self.model)
 
     def transcribe(
         self,
@@ -53,24 +56,37 @@ class FasterWhisperEngine(TranscriptionEngine):
         language: str | None = None,
         task: str = "transcribe",
     ) -> TranscriptionResult:
-        """Transcribe audio and return a structured result.
-
-        Args:
-            audio_path: Path to a WAV audio file.
-            language: Optional language code (e.g. 'fa', 'en').
-                If None, Whisper auto-detects the language.
-        """
-        segments_iter, info = self.model.transcribe(
+        """Transcribe or translate audio, showing live progress."""
+        segments_iter, info = self.batched_model.transcribe(
             str(audio_path),
             beam_size=settings.beam_size,
             language=language,
             task=task,
+            vad_filter=True,
+            batch_size=settings.batch_size,
         )
 
-        segments = [
-            Segment(start=seg.start, end=seg.end, text=seg.text)
-            for seg in segments_iter
-        ]
+        segments: list[Segment] = []
+        total = info.duration  # total audio length in seconds
+
+        with Progress(
+            TextColumn("[cyan]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+        ) as progress:
+            job = progress.add_task(f"{task.capitalize()}", total=total)
+
+            # The iterator yields segments lazily as audio is processed,
+            # so we can report progress based on each segment's end time.
+            for seg in segments_iter:
+                segments.append(
+                    Segment(start=seg.start, end=seg.end, text=seg.text)
+                )
+                progress.update(job, completed=min(seg.end, total))
+
+            progress.update(job, completed=total)
 
         return TranscriptionResult(
             language=info.language,

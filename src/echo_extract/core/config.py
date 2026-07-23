@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     device: str = "cuda"
     compute_type: str = "int8_float16"
     beam_size: int = 5
+    # Batched inference: process multiple audio chunks in parallel.
+    # Higher values use more VRAM but are significantly faster.
+    batch_size: int = 8
 
     # Where HuggingFace stores downloaded models
     hf_home: Path = Path(r"D:\whisper_models\huggingface")
@@ -33,6 +36,8 @@ class Settings(BaseSettings):
 
     # Default output directory (None means "next to the input video")
     default_output_dir: Path | None = None
+
+
 
 
 # A single shared instance imported across the app.
