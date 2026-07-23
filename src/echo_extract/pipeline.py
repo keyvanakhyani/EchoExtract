@@ -4,14 +4,14 @@ from pathlib import Path
 
 from echo_extract.core.models import TranscriptionResult
 from echo_extract.engines.base import TranscriptionEngine
-from echo_extract.io.audio import extract_audio
+from echo_extract.io.audio import prepare_audio
 from echo_extract.io.writers import write_formats
 import logging
 
 logger = logging.getLogger(__name__)
 
-def transcribe_video(
-    video_path: Path,
+def transcribe_media(
+    source_path: Path,
     engine: TranscriptionEngine,
     output_dir: Path,
     formats: list[str],
@@ -38,12 +38,12 @@ def transcribe_video(
         The TranscriptionResult in the source language.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    base_name = video_path.stem
+    base_name = source_path.stem
 
     # Step 1: extract audio, optionally limited to a time range.
-    logger.info("Extracting audio from %s", video_path.name)
+    logger.info("Starting pipeline for %s", source_path.name)
     audio_path = output_dir / f"{base_name}.wav"
-    extract_audio(video_path, audio_path, start_time=start_time, duration=duration)
+    prepare_audio(source_path, audio_path, start_time=start_time, duration=duration)
 
     # Step 2: transcribe in the source language.
     logger.info("Transcribing audio (language=%s)", language or "auto")

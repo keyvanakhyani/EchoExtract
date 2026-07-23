@@ -5,7 +5,7 @@ from pathlib import Path
 
 from echo_extract.core.config import settings
 from echo_extract.engines.faster_whisper_engine import FasterWhisperEngine
-from echo_extract.pipeline import transcribe_video
+from echo_extract.pipeline import transcribe_media
 from echo_extract.core.logging_config import setup_logging
 
 
@@ -14,7 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Transcribe videos to text using local Whisper."
     )
-    parser.add_argument("video", type=Path, help="Path to the video file.")
+    parser.add_argument("media", type=Path, help="Path to the video or audio file.")
     parser.add_argument(
         "-o", "--output", type=Path, default=None,
         help="Output folder. Defaults to the video's own folder.",
@@ -66,18 +66,18 @@ def main() -> None:
     # If no format was given, default to all four.
     formats = args.formats if args.formats else settings.default_formats
 
-    if not args.video.exists():
-        print(f"Error: video not found: {args.video}")
+    if not args.media.exists():
+        print(f"Error: video not found: {args.media}")
         raise SystemExit(1)
 
-    output_dir = args.output if args.output is not None else args.video.parent
+    output_dir = args.output if args.output is not None else args.media.parent
 
     print(f"Loading model '{args.model}' on {args.device}...")
     engine = FasterWhisperEngine(model_size=args.model, device=args.device)
 
-    print(f"Transcribing {args.video.name}...")
-    result = transcribe_video(
-        args.video, engine, output_dir, formats,
+    print(f"Transcribing {args.media.name}...")
+    result = transcribe_media(
+        args.media, engine, output_dir, formats,
         language=args.language,
         translate_to=args.translate_to,
         start_time=args.start,
