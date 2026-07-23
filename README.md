@@ -1,41 +1,45 @@
 # EchoExtract
 
-**Transcribe Persian and English videos to text using local Whisper — with clean, layered architecture.**
+**Transcribe and translate Persian and English videos using local Whisper — GPU-accelerated, with a clean layered architecture.**
 
-EchoExtract turns your video files into text. It extracts the audio, runs it through a locally-hosted Whisper model (GPU-accelerated), and writes the transcript in multiple formats (plain text, SRT/VTT subtitles, and timestamped JSON). Language is auto-detected, so both Persian and English work out of the box.
+EchoExtract turns video files into text. It extracts audio, runs it through a locally-hosted Whisper model on your GPU, and writes transcripts in multiple formats. Language is auto-detected (or you can force it), and any supported language can additionally be translated to English.
 
 ---
 
 ## ✨ Features
 
-- 🎬 **Video → text** in one command (mp4 and other formats via ffmpeg)
-- 🌍 **Persian & English** — automatic language detection (powered by Whisper `large-v3`)
-- 🖥️ **Runs locally on GPU** — no data leaves your machine, no API costs
-- 📄 **Multiple output formats** — `txt`, `srt`, `vtt`, `json` (choose which you want)
-- 🧩 **Pluggable engine architecture** — swap the transcription backend without touching the rest of the app
+- 🎬 **Video → text** in a single command
+- 🌍 **99+ languages** with automatic detection — Persian and English work out of the box
+- 🔤 **Translation to English** alongside the source-language transcript
+- 🖥️ **Local GPU inference** — no data leaves your machine, no API costs
+- ⚡ **Batched inference + VAD filtering** — roughly 2.5× faster than naive transcription, with no quality loss
+- ⏱️ **Time-range selection** — transcribe just a slice of a long video
+- 📄 **Four output formats** — `txt`, `srt`, `vtt`, `json` (pick any subset)
+- 📊 **Live progress bar** with elapsed and remaining time estimates
+- ⚙️ **Centralized configuration** via `pydantic-settings` and `.env` overrides
 - 🧼 **Clean, typed, layered codebase** — Pydantic models, an abstract engine interface, and a thin CLI
 
 ---
 
 ## 🏗️ Architecture
 
-The project is organized into independent layers, each with a single responsibility:
-
 ```
 src/echo_extract/
 ├── core/
-│   └── models.py          # Pydantic domain models (Segment, TranscriptionResult)
+│   ├── models.py          # Pydantic domain models (Segment, TranscriptionResult)
+│   ├── config.py          # Centralized settings (pydantic-settings)
+│   └── logging_config.py  # Rich-formatted application logging
 ├── engines/
 │   ├── base.py            # Abstract TranscriptionEngine interface (Strategy pattern)
 │   └── faster_whisper_engine.py   # Local GPU engine (faster-whisper / CTranslate2)
 ├── io/
-│   ├── audio.py           # Audio extraction from video (ffmpeg)
-│   └── writers.py         # Output writers (txt / srt / vtt / json)
+│   ├── audio.py           # Audio extraction and trimming (ffmpeg)
+│   └── writers.py         # Output writers with a format registry
 ├── pipeline.py            # Orchestration: video → audio → transcript → files
 └── cli.py                 # Command-line interface
 ```
 
-**Why this design?** The `pipeline` holds the pure logic and knows nothing about *how* it's called. The CLI (and future UIs like Gradio or Telegram) simply call `transcribe_video()` — no code duplication. Engines implement a shared interface, so a cloud backend can be added later without changing the pipeline.
+**Why this design?** The pipeline holds pure logic and knows nothing about *how* it's invoked. The CLI — and any future UI — simply calls `transcribe_video()`, so there's no duplicated logic. Engines implement a shared interface, so a cloud backend can be swapped in without touching the pipeline.
 
 ---
 
@@ -44,60 +48,110 @@ src/echo_extract/
 ### Prerequisites
 
 - **Python 3.10+**
-- **ffmpeg** installed and on your PATH ([download](https://ffmpeg.org/download.html))
-- **NVIDIA GPU** with CUDA (optional but strongly recommended — CPU works but is slow)
+- **ffmpeg** on your PATH ([download](https://ffmpeg.org/download.html))
+- **NVIDIA GPU with CUDA** (optional but strongly recommended)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/keyvanakhyani/EchoExtract.git
+git clone https://github.com/YOUR_USERNAME/EchoExtract.git
 cd EchoExtract
 
-# Create and activate a virtual environment
 python -m venv venv
 # Windows:
 .\venv\Scripts\Activate.ps1
 # macOS/Linux:
 source venv/bin/activate
 
-# Install the package and its dependencies
 pip install -e .
 ```
 
-> **GPU users (Windows):** the CUDA libraries are installed via pip:
-> ```bash
-> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
-> ```
-
-### Usage
+**For GPU acceleration**, install the CUDA runtime libraries:
 
 ```bash
-# Transcribe a video into all formats (output saved next to the video)
-python -m echo_extract.cli "path/to/video.mp4"
-
-# Choose specific output formats
-python -m echo_extract.cli "path/to/video.mp4" -f srt -f json
-
-# Use a smaller/faster model, run on CPU, and pick an output folder
-python -m echo_extract.cli "path/to/video.mp4" -m small --device cpu -o "path/to/output"
+pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
 
-| Option | Description | Default |
-|---|---|---|
-| `video` | Path to the input video (required) | — |
-| `-f`, `--format` | Output format, repeatable: `txt`, `srt`, `vtt`, `json` | all four |
-| `-o`, `--output` | Output folder | the video's own folder |
-| `-m`, `--model` | Whisper model size | `large-v3` |
-| `--device` | `cuda` or `cpu` | `cuda` |
-| `--keep-audio` | Keep the intermediate WAV file | off |
+The application locates these DLLs automatically, so no manual PATH setup is required.
+
+---
+
+## 📖 Usage
+
+```bash
+# Transcribe a video into all four formats (saved next to the video)
+python -m echo_extract.cli "path/to/video.mp4"
+
+# Persian video, subtitles only
+python -m echo_extract.cli "lecture.mp4" -l fa -f srt
+
+# Transcribe AND translate to English (produces two sets of files)
+python -m echo_extract.cli "lecture.mp4" -l fa --translate-to en -f srt
+
+# Transcribe just 3 minutes starting at the 5-minute mark
+python -m echo_extract.cli "lecture.mp4" --start 300 --duration 180
+```
+
+### CLI Options
+
+| Option | Short | Description | Default |
+|---|---|---|---|
+| `video` | — | Path to the input video (required) | — |
+| `--format` | `-f` | Output format, repeatable: `txt`, `srt`, `vtt`, `json` | all four |
+| `--output` | `-o` | Output folder | the video's own folder |
+| `--language` | `-l` | Force source language (e.g. `fa`, `en`) | auto-detect |
+| `--translate-to` | — | Also write a translation (currently `en` only) | off |
+| `--model` | `-m` | Whisper model size | `large-v3` |
+| `--device` | — | `cuda` or `cpu` | `cuda` |
+| `--start` | — | Start time in seconds | beginning |
+| `--duration` | — | Duration in seconds to process | whole video |
+| `--keep-audio` | — | Keep the intermediate WAV file | off |
+| `--verbose` | `-v` | Show detailed debug logs | off |
+
+### Output Naming
+
+Outputs are suffixed with their language, so transcripts and translations never collide:
+
+```
+lecture.fa.srt    # Persian transcript
+lecture.en.srt    # English translation
+```
+
+---
+
+## ⚙️ Configuration
+
+All defaults live in `core/config.py` and can be overridden with environment variables or a `.env` file — no code changes needed:
+
+```env
+ECHO_MODEL_SIZE=large-v3
+ECHO_DEVICE=cuda
+ECHO_COMPUTE_TYPE=int8_float16
+ECHO_BEAM_SIZE=5
+ECHO_BATCH_SIZE=8
+ECHO_HF_HOME=D:/whisper_models/huggingface
+```
+
+---
+
+## 📊 Performance
+
+Measured on an RTX 4060 Laptop (8 GB VRAM) with `large-v3`:
+
+| Configuration | 3-minute audio |
+|---|---|
+| Sequential inference | ~36 s |
+| **Batched inference + VAD** | **~15 s** |
+
+Batched inference processes multiple audio chunks in parallel on the GPU, and VAD filtering skips silent regions — together roughly **2.5× faster with no reduction in transcription quality**.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2) — fast local Whisper inference
-- [Pydantic](https://docs.pydantic.dev/) — typed domain models
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2) — local Whisper inference
+- [Pydantic](https://docs.pydantic.dev/) & pydantic-settings — typed models and configuration
+- [Rich](https://github.com/Textualize/rich) — progress bars and formatted logging
 - [ffmpeg](https://ffmpeg.org/) — audio extraction
 - Python 3.10+ with full type hints
 
@@ -105,58 +159,84 @@ python -m echo_extract.cli "path/to/video.mp4" -m small --device cpu -o "path/to
 
 ## 🗺️ Roadmap
 
-- [ ] Optional input language override (`--language fa`)
-- [ ] Language-based organization of outputs (Persian / English)
-- [ ] Gradio web interface with i18n (Persian / English UI)
+- [ ] Gradio web interface with Persian/English UI (i18n)
 - [ ] Telegram bot for on-the-go transcription
-- [ ] Optional LLM post-processing (summaries, cleanup) via OpenRouter
+- [ ] Chunked processing for resumable long-video runs
+- [ ] LLM post-processing — summaries and translation to arbitrary languages
+- [ ] Test suite
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ---
 <br>
 
 # EchoExtract (فارسی)
 
-**تبدیل ویدیوهای فارسی و انگلیسی به متن، با استفاده از Whisper به‌صورت لوکال — و معماری تمیز و لایه‌ای.**
+**تبدیل ویدیوهای فارسی و انگلیسی به متن با Whisper محلی — با شتاب GPU و معماری تمیز و لایه‌ای.**
 
-EchoExtract فایل‌های ویدیویی شما را به متن تبدیل می‌کند. صدا را استخراج می‌کند، آن را به یک مدل Whisper که به‌صورت محلی و روی GPU اجرا می‌شود می‌دهد، و متن را در چند فرمت مختلف می‌نویسد (متن ساده، زیرنویس SRT/VTT، و JSON با timestamp). زبان به‌صورت خودکار تشخیص داده می‌شود، پس هم فارسی و هم انگلیسی بدون تنظیم اضافه کار می‌کنند.
+EchoExtract فایل‌های ویدیویی را به متن تبدیل می‌کند. صدا را استخراج می‌کند، آن را با مدل Whisper روی GPU پردازش می‌کند، و متن را در چند فرمت می‌نویسد. زبان به‌صورت خودکار تشخیص داده می‌شود (یا می‌توانید آن را مشخص کنید)، و امکان ترجمه به انگلیسی نیز وجود دارد.
 
 ## ✨ امکانات
 
 - 🎬 **ویدیو به متن** با یک دستور
-- 🌍 **فارسی و انگلیسی** — تشخیص خودکار زبان (با مدل Whisper `large-v3`)
-- 🖥️ **اجرای محلی روی GPU** — هیچ داده‌ای از سیستم شما خارج نمی‌شود و هزینه‌ی API ندارد
-- 📄 **فرمت‌های خروجی متعدد** — `txt`، `srt`، `vtt`، `json` (هر کدام را که بخواهید)
-- 🧩 **معماری engine قابل‌تعویض** — می‌توان backend را بدون تغییر بقیه‌ی برنامه عوض کرد
-- 🧼 **کد تمیز، type-safe و لایه‌ای** — مدل‌های Pydantic، یک interface انتزاعی برای engine، و یک CLI سبک
+- 🌍 **بیش از ۹۹ زبان** با تشخیص خودکار — فارسی و انگلیسی بدون تنظیم اضافه
+- 🔤 **ترجمه به انگلیسی** در کنار متن زبان اصلی
+- 🖥️ **اجرای محلی روی GPU** — هیچ داده‌ای از سیستم شما خارج نمی‌شود
+- ⚡ **پردازش دسته‌ای و فیلتر سکوت** — حدود ۲.۵ برابر سریع‌تر بدون افت کیفیت
+- ⏱️ **انتخاب بازه‌ی زمانی** — پردازش بخشی از یک ویدیوی طولانی
+- 📄 **چهار فرمت خروجی** — `txt`، `srt`، `vtt`، `json`
+- 📊 **نوار پیشرفت زنده** با تخمین زمان باقی‌مانده
+- ⚙️ **پیکربندی متمرکز** با `pydantic-settings` و پشتیبانی از `.env`
 
 ## 🚀 شروع سریع
 
-**پیش‌نیازها:** پایتون ۳.۱۰ به بالا، نصب ffmpeg، و ترجیحاً یک GPU انویدیا با CUDA.
+**پیش‌نیازها:** پایتون ۳.۱۰ به بالا، ffmpeg، و ترجیحاً یک GPU انویدیا.
 
 ```bash
-git clone https://github.com/keyvanakhyani/EchoExtract.git
+git clone https://github.com/YOUR_USERNAME/EchoExtract.git
 cd EchoExtract
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -e .
+pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
 
-**استفاده:**
+## 📖 نحوه‌ی استفاده
 
 ```bash
-# تبدیل یک ویدیو به همه‌ی فرمت‌ها (خروجی کنار خود ویدیو ساخته می‌شود)
+# تبدیل ویدیو به همه‌ی فرمت‌ها
 python -m echo_extract.cli "path/to/video.mp4"
 
-# انتخاب فرمت‌های خاص
-python -m echo_extract.cli "path/to/video.mp4" -f srt -f json
+# ویدیوی فارسی، فقط زیرنویس
+python -m echo_extract.cli "lecture.mp4" -l fa -f srt
+
+# رونویسی به همراه ترجمه‌ی انگلیسی
+python -m echo_extract.cli "lecture.mp4" -l fa --translate-to en -f srt
+
+# پردازش فقط ۳ دقیقه، از دقیقه‌ی پنجم
+python -m echo_extract.cli "lecture.mp4" --start 300 --duration 180
 ```
+
+خروجی‌ها با پسوند زبان ذخیره می‌شوند تا متن اصلی و ترجمه با هم قاطی نشوند:
+
+```
+lecture.fa.srt    # متن فارسی
+lecture.en.srt    # ترجمه‌ی انگلیسی
+```
+
+## 📊 کارایی
+
+روی RTX 4060 لپ‌تاپی (۸ گیگابایت VRAM) با مدل `large-v3`:
+
+| پیکربندی | صدای ۳ دقیقه‌ای |
+|---|---|
+| پردازش ترتیبی | حدود ۳۶ ثانیه |
+| **پردازش دسته‌ای + VAD** | **حدود ۱۵ ثانیه** |
 
 ## 📄 لایسنس
 
-این پروژه تحت لایسنس MIT منتشر شده است.
+MIT
