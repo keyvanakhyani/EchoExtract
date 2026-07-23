@@ -14,9 +14,14 @@ class TranscriptionEngine(ABC):
     """
 
     @abstractmethod
-    def transcribe(self, audio_path: Path) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: str | None = None,
+        task: str = "transcribe",
+    ) -> TranscriptionResult:
         """Transcribe an audio file into a structured result.
-
+        
         Args:
             audio_path: Path to a WAV audio file.
 

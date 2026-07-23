@@ -8,7 +8,12 @@ class AudioExtractionError(Exception):
     """Raised when ffmpeg fails to extract audio from a video file."""
 
 
-def extract_audio(video_path: Path, output_path: Path) -> Path:
+def extract_audio(
+    video_path: Path,
+    output_path: Path,
+    start_time: float | None = None,
+    duration: float | None = None,
+) -> Path:
     """Extract mono 16kHz WAV audio from a video file using ffmpeg.
 
     Whisper models are trained on 16kHz mono audio, so we convert to that
@@ -31,15 +36,24 @@ def extract_audio(video_path: Path, output_path: Path) -> Path:
     # Ensure the output directory exists before ffmpeg writes to it.
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Build the ffmpeg command as a list so paths with spaces are safe.
-    command = [
-        "ffmpeg",
-        "-i", str(video_path),   # input file
-        "-vn",                   # drop the video stream
-        "-ar", "16000",          # audio sample rate: 16kHz
-        "-ac", "1",              # audio channels: mono
-        "-c:a", "pcm_s16le",     # standard 16-bit WAV codec
-        "-y",                    # overwrite output if it exists
+    command = ["ffmpeg"]
+
+    # Seek to start time before input for fast seeking (if provided).
+    if start_time is not None:
+        command += ["-ss", str(start_time)]
+
+    command += ["-i", str(video_path)]
+
+    # Limit duration (if provided).
+    if duration is not None:
+        command += ["-t", str(duration)]
+
+    command += [
+        "-vn",
+        "-ar", "16000",
+        "-ac", "1",
+        "-c:a", "pcm_s16le",
+        "-y",
         str(output_path),
     ]
 

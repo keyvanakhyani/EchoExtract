@@ -92,21 +92,25 @@ def write_formats(
     output_dir: Path,
     base_name: str,
     formats: list[str],
+    suffix: str = "",
 ) -> list[Path]:
-    """Write the result in the requested formats only.
+    """Write the result in the requested formats.
 
     Args:
         result: The transcription result to write.
         output_dir: Directory for the output files.
         base_name: File name without extension.
         formats: Which formats to write, e.g. ["srt", "json"].
+        suffix: Optional suffix added before the extension (e.g. 'fa'
+            produces 'name.fa.srt'). Empty means no suffix.
 
     Returns:
         The list of file paths that were written.
     """
     written: list[Path] = []
+    dotted = f".{suffix}" if suffix else ""
     for fmt in formats:
         writer = WRITERS[fmt]
-        path = writer(result, output_dir / f"{base_name}.{fmt}")
+        path = writer(result, output_dir / f"{base_name}{dotted}.{fmt}")
         written.append(path)
     return written
