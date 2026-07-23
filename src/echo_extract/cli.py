@@ -6,6 +6,7 @@ from pathlib import Path
 from echo_extract.core.config import settings
 from echo_extract.engines.faster_whisper_engine import FasterWhisperEngine
 from echo_extract.pipeline import transcribe_video
+from echo_extract.core.logging_config import setup_logging
 
 
 def main() -> None:
@@ -48,7 +49,12 @@ def main() -> None:
         "--translate-to", default=None, dest="translate_to",
         help="Translate output to this language. Currently only 'en' is supported.",
     )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Show detailed debug logs.",
+    )
     args = parser.parse_args()
+    setup_logging(verbose=args.verbose)
 
     if args.translate_to is not None and args.translate_to != "en":
         print(

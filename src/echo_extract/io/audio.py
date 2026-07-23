@@ -3,6 +3,9 @@
 import subprocess
 from pathlib import Path
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AudioExtractionError(Exception):
     """Raised when ffmpeg fails to extract audio from a video file."""
@@ -66,6 +69,7 @@ def extract_audio(
 
     # A non-zero return code means ffmpeg failed; surface its error message.
     if result.returncode != 0:
+        logger.error("ffmpeg failed for %s", video_path)
         raise AudioExtractionError(
             f"ffmpeg failed for {video_path}:\n{result.stderr}"
         )
