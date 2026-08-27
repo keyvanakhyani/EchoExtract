@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     # Batched inference: process multiple audio chunks in parallel.
     # Higher values use more VRAM but are significantly faster.
     batch_size: int = 8
+    # Telegram bot token (set via ECHO_TELEGRAM_TOKEN in .env)
+    telegram_token: str = ""
 
     # Where HuggingFace stores downloaded models
-    hf_home: Path = Path(r"D:\whisper_models\huggingface")
+    hf_home: Path = Path(r"D:\huggingface")
 
     # Default output formats when none are specified
     default_formats: list[str] = ["txt", "srt", "vtt", "json"]

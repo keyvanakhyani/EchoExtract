@@ -1,6 +1,7 @@
 # Virtual environment
 venv/
 .venv/
+get-pip.py
 
 # Python cache
 __pycache__/
